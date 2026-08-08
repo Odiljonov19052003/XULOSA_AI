@@ -1,0 +1,423 @@
+<div id="app"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+
+<style>
+  :root{
+    --bg:#0E1013;
+    --surface:#171A20;
+    --surface2:#1E222A;
+    --border:#2A2F3A;
+    --text:#EDEFF3;
+    --text-soft:#8B93A3;
+    --pos:#3FD6A8;
+    --pos-dim:rgba(63,214,168,0.12);
+    --neg:#FF6B5F;
+    --neg-dim:rgba(255,107,95,0.12);
+    --accent:#E8B44C;
+    --accent-dim:rgba(232,180,76,0.12);
+    --blue:#5B8DEF;
+  }
+  *{box-sizing:border-box;}
+  #app{
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;
+    min-height:100%;
+    padding:0;
+  }
+  .wrap{max-width:1040px;margin:0 auto;padding:40px 20px 70px;}
+
+  .masthead{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:6px;gap:12px;flex-wrap:wrap;}
+  .masthead h1{
+    font-size:26px;font-weight:700;margin:0;letter-spacing:-0.02em;
+    background:linear-gradient(90deg,#EDEFF3 0%,#9AA5B8 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .masthead .date{
+    font-family:ui-monospace,"SF Mono","Courier New",monospace;
+    font-size:12px;color:var(--text-soft);
+    background:var(--surface2);border:1px solid var(--border);
+    padding:4px 10px;border-radius:20px;
+  }
+  .subtitle{font-size:13.5px;color:var(--text-soft);margin:6px 0 28px;}
+
+  .panel{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:16px;
+    padding:26px;
+  }
+
+  .drop{
+    border:1.5px dashed var(--border);
+    border-radius:12px;
+    padding:38px 20px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .15s, background .15s;
+    background:var(--surface2);
+  }
+  .drop:hover, .drop.drag{border-color:var(--accent); background:var(--accent-dim);}
+  .drop input{display:none;}
+  .drop .icon{
+    width:42px;height:42px;border-radius:10px;margin:0 auto 12px;
+    background:linear-gradient(135deg,var(--blue),var(--pos));
+    display:flex;align-items:center;justify-content:center;font-size:19px;
+  }
+  .drop .main{font-size:14px;color:var(--text);font-weight:500;}
+  .drop .sub{font-size:12px;color:var(--text-soft);margin-top:5px;}
+
+  .btn{
+    font-family:inherit;font-weight:600;
+    background:linear-gradient(135deg,#5B8DEF,#3FD6A8);
+    color:#0E1013;border:none;border-radius:10px;
+    padding:10px 18px;font-size:13px;cursor:pointer;
+    transition:opacity .15s, transform .1s;
+  }
+  .btn:hover{opacity:0.88;}
+  .btn:active{transform:scale(0.98);}
+  .btn:disabled{opacity:0.5;cursor:default;}
+  .btn.ghost{background:transparent;color:var(--text-soft);border:1px solid var(--border);}
+  .btn.ghost:hover{color:var(--neg);border-color:var(--neg);opacity:1;}
+
+  .row-top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:26px 0 18px;}
+  .count{font-size:12px;color:var(--text-soft);font-family:ui-monospace,monospace;}
+
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px;}
+  .kpi{
+    background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:15px 16px;
+    position:relative;overflow:hidden;
+  }
+  .kpi .label{font-size:11px;color:var(--text-soft);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px;}
+  .kpi .val{font-family:ui-monospace,"SF Mono",monospace;font-size:19px;font-weight:700;}
+  .kpi.pos .val{color:var(--pos);}
+  .kpi.neg .val{color:var(--neg);}
+  .kpi.accent .val{color:var(--accent);}
+
+  .charts{display:grid;grid-template-columns:1.3fr 1fr;gap:14px;margin-bottom:22px;}
+  .chart-box{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px;}
+  .chart-box h3{font-size:12.5px;margin:0 0 12px;color:var(--text-soft);font-weight:600;letter-spacing:0.2px;}
+  .chart-box .canvas-wrap{position:relative;height:190px;}
+
+  .note{
+    margin-top:4px;margin-bottom:22px;
+    background:var(--accent-dim);
+    border:1px solid rgba(232,180,76,0.35);
+    border-radius:12px;
+    padding:18px 20px;
+    position:relative;
+  }
+  .note .tag-label{
+    display:inline-flex;align-items:center;gap:6px;
+    font-size:10.5px;letter-spacing:1px;color:var(--accent);font-weight:700;
+    margin-bottom:8px;text-transform:uppercase;
+  }
+  .note p{margin:0;font-size:14px;line-height:1.7;color:var(--text);white-space:pre-wrap;}
+  .note.loading p{color:var(--text-soft);font-style:italic;}
+  .note.err{background:var(--neg-dim);border-color:rgba(255,107,95,0.4);}
+  .note.err .tag-label{color:var(--neg);}
+
+  table.entries{width:100%;border-collapse:collapse;margin-top:6px;font-family:ui-monospace,monospace;font-size:13px;}
+  table.entries th{text-align:left;padding:9px 10px;border-bottom:1px solid var(--border);color:var(--text-soft);font-weight:600;font-size:10.5px;text-transform:uppercase;letter-spacing:0.4px;}
+  table.entries td{padding:9px 10px;border-bottom:1px solid var(--border);color:#F5F7FA;}
+  table.entries tbody tr:nth-child(odd) td{background:rgba(255,255,255,0.015);}
+  table.entries tr:hover td{background:var(--surface2);}
+  .tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:700;}
+  .tag.d{background:var(--pos-dim);color:var(--pos);}
+  .tag.x{background:var(--neg-dim);color:var(--neg);}
+  .sum-d{color:var(--pos);} .sum-x{color:var(--neg);}
+
+  .empty{text-align:center;padding:44px 10px;color:var(--text-soft);font-size:13px;}
+  .foot{margin-top:22px;font-size:11px;color:var(--text-soft);text-align:center;}
+  .section-title{font-size:12.5px;color:var(--text-soft);font-weight:600;letter-spacing:0.2px;margin:0 0 8px;}
+  .err-detail{font-family:ui-monospace,monospace;font-size:11px;color:var(--text-soft);margin-top:8px;word-break:break-all;}
+
+  @media (max-width:640px){
+    .kpis{grid-template-columns:repeat(2,1fr);}
+    .charts{grid-template-columns:1fr;}
+    .panel{padding:18px;}
+  }
+</style>
+
+<script type="text/babel" data-presets="react">
+const {useState,useEffect,useRef,useCallback} = React;
+
+const REQUIRED_COLS = ["Sana","Turi","Kategoriya","Bolim","Summa"];
+const STORAGE_KEY = "moliya_yozuvlari_v1";
+
+function fmt(n){
+  if (n===null||n===undefined||isNaN(n)) return "-";
+  return Math.round(n).toLocaleString("ru-RU").replace(/,/g," ") + " so'm";
+}
+function rowKey(r){ return [r.Sana,r.Turi,r.Kategoriya,r.Bolim,r.Summa].join("|"); }
+
+function App(){
+  const [rows,setRows] = useState([]);
+  const [loaded,setLoaded] = useState(false);
+  const [dragging,setDragging] = useState(false);
+  const [lastUploadCount,setLastUploadCount] = useState(0);
+  const [aiText,setAiText] = useState("");
+  const [aiLoading,setAiLoading] = useState(false);
+  const [aiErr,setAiErr] = useState(false);
+  const [aiErrDetail,setAiErrDetail] = useState("");
+  const fileRef = useRef(null);
+  const chartRef1 = useRef(null);
+  const chartRef2 = useRef(null);
+  const chartObj1 = useRef(null);
+  const chartObj2 = useRef(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/entries");
+        if (res.ok) {
+          const data = await res.json();
+          setRows(data.entries || []);
+        }
+      } catch(e) { console.error("Ma'lumot yuklashda xatolik:", e); }
+      setLoaded(true);
+    })();
+  }, []);
+
+  const parseFile = (file) => {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const wb = XLSX.read(e.target.result, {type:"array", cellDates:false});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(ws, {defval:""});
+        const missing = REQUIRED_COLS.filter(c => !(c in (json[0]||{})));
+        if (json.length===0 || missing.length>0){
+          alert("Fayl formati mos emas. Quyidagi ustunlar bo'lishi kerak: " + REQUIRED_COLS.join(", "));
+          return;
+        }
+        const parsed = json.map(r => {
+          let sana = r.Sana;
+          if (typeof sana === "number") {
+            const d = XLSX.SSF.parse_date_code(sana);
+            sana = `${d.y}-${String(d.m).padStart(2,"0")}-${String(d.d).padStart(2,"0")}`;
+          }
+          return {
+            Sana: String(sana).slice(0,10),
+            Turi: String(r.Turi).trim(),
+            Kategoriya: String(r.Kategoriya).trim(),
+            Bolim: String(r.Bolim).trim(),
+            Summa: Number(r.Summa)||0
+          };
+        }).filter(r => r.Sana && r.Summa && (r.Turi==="Daromad"||r.Turi==="Xarajat"));
+
+        try {
+          const res = await fetch("/api/entries", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({entries: parsed})
+          });
+          const data = await res.json();
+          setRows(data.entries || []);
+          setLastUploadCount(data.added ?? 0);
+        } catch(e2) {
+          alert("Ma'lumotni serverga yuborishda xatolik. Internet aloqasini tekshiring.");
+        }
+        setAiText(""); setAiErr(false);
+      } catch(err){
+        alert("Faylni o'qib bo'lmadi. .xlsx formatda ekanini tekshiring.");
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  const onFileInput = (e) => { if(e.target.files[0]) parseFile(e.target.files[0]); e.target.value=""; };
+  const onDrop = (e) => { e.preventDefault(); setDragging(false); if(e.dataTransfer.files[0]) parseFile(e.dataTransfer.files[0]); };
+
+  const clearAll = async () => {
+    if(!confirm("Barcha saqlangan ma'lumotlarni o'chirmoqchimisiz? Bu ortga qaytarilmaydi.")) return;
+    try { await fetch("/api/entries", {method:"DELETE"}); } catch(e){}
+    setRows([]); setAiText(""); setLastUploadCount(0);
+  };
+
+  const totalDaromad = rows.filter(r=>r.Turi==="Daromad").reduce((s,r)=>s+r.Summa,0);
+  const totalXarajat = rows.filter(r=>r.Turi==="Xarajat").reduce((s,r)=>s+r.Summa,0);
+  const foyda = totalDaromad - totalXarajat;
+  const marja = totalDaromad>0 ? (foyda/totalDaromad*100) : 0;
+
+  const byMonth = {};
+  rows.forEach(r=>{
+    const m = r.Sana.slice(0,7);
+    byMonth[m] = byMonth[m] || {Daromad:0,Xarajat:0};
+    byMonth[m][r.Turi] += r.Summa;
+  });
+  const months = Object.keys(byMonth).sort();
+
+  const byCat = {};
+  rows.filter(r=>r.Turi==="Xarajat").forEach(r=>{
+    byCat[r.Kategoriya] = (byCat[r.Kategoriya]||0) + r.Summa;
+  });
+  const catEntries = Object.entries(byCat).sort((a,b)=>b[1]-a[1]).slice(0,7);
+
+  useEffect(()=>{
+    if(!loaded) return;
+    if(chartObj1.current) chartObj1.current.destroy();
+    if(chartObj2.current) chartObj2.current.destroy();
+    if(months.length===0) return;
+
+    chartObj1.current = new Chart(chartRef1.current, {
+      type:"line",
+      data:{ labels:months, datasets:[
+        {label:"Daromad", data:months.map(m=>byMonth[m].Daromad||0), borderColor:"#3FD6A8", backgroundColor:"rgba(63,214,168,0.10)", fill:true, tension:0.3, pointRadius:2, borderWidth:2},
+        {label:"Xarajat", data:months.map(m=>byMonth[m].Xarajat||0), borderColor:"#FF6B5F", backgroundColor:"rgba(255,107,95,0.10)", fill:true, tension:0.3, pointRadius:2, borderWidth:2}
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:true,position:"bottom",labels:{boxWidth:10,font:{size:10},color:"#8B93A3"}}},
+        scales:{x:{ticks:{color:"#8B93A3",font:{size:9}},grid:{color:"#2A2F3A"}},
+                y:{ticks:{color:"#8B93A3",font:{size:9},callback:v=>(v/1e6).toFixed(0)+"M"},grid:{color:"#2A2F3A"}}}}
+    });
+
+    chartObj2.current = new Chart(chartRef2.current, {
+      type:"bar",
+      data:{ labels:catEntries.map(e=>e[0]), datasets:[{data:catEntries.map(e=>e[1]), backgroundColor:"#E8B44C", borderRadius:5, maxBarThickness:18}]},
+      options:{indexAxis:"y", responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{display:false}},
+        scales:{x:{ticks:{color:"#8B93A3",font:{size:9},callback:v=>(v/1e6).toFixed(0)+"M"},grid:{color:"#2A2F3A"}},
+                y:{ticks:{color:"#8B93A3",font:{size:10}},grid:{display:false}}}}
+    });
+  }, [loaded, rows.length]);
+
+  const askAI = async () => {
+    if(rows.length===0) return;
+    setAiLoading(true); setAiErr(false); setAiErrDetail(""); setAiText("");
+
+    const context = `
+Jami daromad: ${fmt(totalDaromad)}
+Jami xarajat: ${fmt(totalXarajat)}
+Sof foyda: ${fmt(foyda)}
+Foyda marjasi: ${marja.toFixed(1)}%
+Eng katta xarajat kategoriyalari: ${catEntries.map(([k,v])=>`${k}: ${fmt(v)}`).join(", ")}
+Oylar bo'yicha daromad/xarajat: ${months.map(m=>`${m} -> daromad ${fmt(byMonth[m].Daromad||0)}, xarajat ${fmt(byMonth[m].Xarajat||0)}`).join("; ")}
+`.trim();
+
+    try {
+      const resp = await fetch("/api/xulosa", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({context})
+      });
+      const data = await resp.json();
+
+      if(!resp.ok || data.error){
+        console.error("Backend xatolik:", data);
+        setAiErr(true);
+        setAiErrDetail(data.error || `HTTP ${resp.status}`);
+        setAiText("AI xulosa olishda xatolik yuz berdi. Server sozlamalarini (.env dagi API kalit) tekshiring.");
+        setAiLoading(false);
+        return;
+      }
+
+      setAiText(data.xulosa || "AI javob qaytarmadi. Qayta urinib ko'ring.");
+    } catch(e){
+      console.error("Fetch xatolik:", e);
+      setAiErr(true);
+      setAiErrDetail(String(e.message || e));
+      setAiText("Xulosa olishda xatolik yuz berdi. Server ishlab turganini va internet aloqasini tekshiring.");
+    }
+    setAiLoading(false);
+  };
+
+  const todayStr = new Date().toISOString().slice(0,10);
+  const recentRows = [...rows].sort((a,b)=>b.Sana.localeCompare(a.Sana)).slice(0,12);
+
+  return (
+    <div className="wrap">
+      <div className="masthead">
+        <h1>Moliya Daftari</h1>
+        <span className="date">{todayStr}</span>
+      </div>
+      <p className="subtitle">Kunlik sotuv, tushum va xarajatlarni yuklang — AI avtomatik xulosa chiqaradi</p>
+
+      <div className="panel">
+        <div
+          className={"drop" + (dragging ? " drag" : "")}
+          onClick={()=>fileRef.current.click()}
+          onDragOver={(e)=>{e.preventDefault();setDragging(true);}}
+          onDragLeave={()=>setDragging(false)}
+          onDrop={onDrop}
+        >
+          <input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={onFileInput} />
+          <div className="icon">↑</div>
+          <div className="main">Excel faylni shu yerga tashlang yoki bosib tanlang</div>
+          <div className="sub">Ustunlar: Sana · Turi (Daromad/Xarajat) · Kategoriya · Bolim · Summa</div>
+        </div>
+
+        {rows.length>0 && (
+        <>
+          <div className="row-top">
+            <span className="count">
+              Jami {rows.length} ta yozuv{lastUploadCount>0 ? ` — oxirgi yuklashda ${lastUploadCount} ta yangi qo'shildi` : ""}
+            </span>
+            <div style={{display:"flex",gap:8}}>
+              <button className="btn" onClick={askAI} disabled={aiLoading}>
+                {aiLoading ? "Tahlil qilinmoqda..." : "AI xulosa chiqarish"}
+              </button>
+              <button className="btn ghost" onClick={clearAll}>Tozalash</button>
+            </div>
+          </div>
+
+          <div className="kpis">
+            <div className="kpi pos"><div className="label">Jami daromad</div><div className="val">{fmt(totalDaromad)}</div></div>
+            <div className="kpi neg"><div className="label">Jami xarajat</div><div className="val">{fmt(totalXarajat)}</div></div>
+            <div className="kpi pos"><div className="label">Sof foyda</div><div className="val">{fmt(foyda)}</div></div>
+            <div className="kpi accent"><div className="label">Foyda marjasi</div><div className="val">{marja.toFixed(1)}%</div></div>
+          </div>
+
+          <div className="charts">
+            <div className="chart-box">
+              <h3>Oylar bo'yicha daromad / xarajat</h3>
+              <div className="canvas-wrap"><canvas ref={chartRef1}></canvas></div>
+            </div>
+            <div className="chart-box">
+              <h3>Xarajat kategoriyalari</h3>
+              <div className="canvas-wrap"><canvas ref={chartRef2}></canvas></div>
+            </div>
+          </div>
+
+          {(aiText || aiLoading) && (
+            <div className={"note" + (aiLoading?" loading":"") + (aiErr?" err":"")}>
+              <div className="tag-label">{aiErr ? "Xatolik" : "AI Xulosa"}</div>
+              <p>{aiLoading ? "AI ma'lumotlarni tahlil qilyapti, biroz kuting..." : aiText}</p>
+              {aiErr && aiErrDetail && <div className="err-detail">Texnik tafsilot: {aiErrDetail}</div>}
+            </div>
+          )}
+
+          <p className="section-title">So'nggi yozuvlar</p>
+          <table className="entries">
+            <thead><tr><th>Sana</th><th>Turi</th><th>Kategoriya</th><th>Bo'lim</th><th style={{textAlign:"right"}}>Summa</th></tr></thead>
+            <tbody>
+              {recentRows.map((r,i)=>(
+                <tr key={i}>
+                  <td>{r.Sana}</td>
+                  <td><span className={"tag "+(r.Turi==="Daromad"?"d":"x")}>{r.Turi}</span></td>
+                  <td>{r.Kategoriya}</td>
+                  <td>{r.Bolim}</td>
+                  <td style={{textAlign:"right"}} className={r.Turi==="Daromad"?"sum-d":"sum-x"}>{fmt(r.Summa)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+        )}
+
+        {rows.length===0 && loaded && (
+          <div className="empty">Hali ma'lumot yuklanmagan. Yuqoridagi joyga Excel faylni tashlang.</div>
+        )}
+      </div>
+
+      <div className="foot">Ma'lumotlar serverda saqlanadi — barcha rahbarlar bir xil ma'lumotni ko'radi.</div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("app")).render(<App/>);
+</script>
