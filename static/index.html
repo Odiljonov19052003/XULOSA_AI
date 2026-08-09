@@ -1,10 +1,13 @@
+
+
+
 <div id="app"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
-
+ 
 <style>
   :root{
     --bg:#0E1013; --surface:#171A20; --surface2:#1E222A; --border:#2A2F3A;
@@ -17,16 +20,16 @@
   *{box-sizing:border-box;}
   #app{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;min-height:100%;}
   .wrap{max-width:1120px;margin:0 auto;padding:40px 20px 70px;}
-
+ 
   .masthead{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:6px;gap:12px;flex-wrap:wrap;}
   .masthead h1{font-size:26px;font-weight:700;margin:0;letter-spacing:-0.02em;
     background:linear-gradient(90deg,#EDEFF3 0%,#9AA5B8 100%);-webkit-background-clip:text;background-clip:text;color:transparent;}
   .masthead .date{font-family:ui-monospace,"SF Mono","Courier New",monospace;font-size:12px;color:var(--text-soft);
     background:var(--surface2);border:1px solid var(--border);padding:4px 10px;border-radius:20px;}
   .subtitle{font-size:13.5px;color:var(--text-soft);margin:6px 0 28px;}
-
+ 
   .panel{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:26px;}
-
+ 
   .drop{border:1.5px dashed var(--border);border-radius:12px;padding:34px 20px;text-align:center;cursor:pointer;
     transition:border-color .15s, background .15s;background:var(--surface2);}
   .drop:hover, .drop.drag{border-color:var(--accent); background:var(--accent-dim);}
@@ -35,24 +38,24 @@
     background:linear-gradient(135deg,var(--blue),var(--pos));display:flex;align-items:center;justify-content:center;font-size:19px;}
   .drop .main{font-size:14px;color:var(--text);font-weight:500;}
   .drop .sub{font-size:12px;color:var(--text-soft);margin-top:5px;}
-
+ 
   .btn{font-family:inherit;font-weight:600;background:linear-gradient(135deg,#5B8DEF,#3FD6A8);
     color:#0E1013;border:none;border-radius:10px;padding:10px 18px;font-size:13px;cursor:pointer;
     transition:opacity .15s, transform .1s;}
   .btn:hover{opacity:0.88;} .btn:active{transform:scale(0.98);} .btn:disabled{opacity:0.5;cursor:default;}
   .btn.ghost{background:transparent;color:var(--text-soft);border:1px solid var(--border);}
   .btn.ghost:hover{color:var(--neg);border-color:var(--neg);opacity:1;}
-
+ 
   .row-top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:26px 0 18px;}
   .count{font-size:12px;color:var(--text-soft);font-family:ui-monospace,monospace;}
-
+ 
   .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px;}
   .kpi{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:15px 16px;}
   .kpi .label{font-size:10.5px;color:var(--text-soft);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;}
   .kpi .val{font-family:ui-monospace,"SF Mono",monospace;font-size:18px;font-weight:700;}
   .kpi.pos .val{color:var(--pos);} .kpi.neg .val{color:var(--neg);}
   .kpi.accent .val{color:var(--accent);} .kpi.blue .val{color:var(--blue);}
-
+ 
   .charts{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:22px;}
   .chart-box{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px;}
   .chart-box .chead{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px;flex-wrap:wrap;}
@@ -60,7 +63,7 @@
   .chart-box select{background:var(--surface);border:1px solid var(--border);color:var(--text);
     font-size:11.5px;border-radius:7px;padding:4px 8px;font-family:inherit;}
   .chart-box .canvas-wrap{position:relative;height:230px;}
-
+ 
   .note{margin-top:4px;margin-bottom:22px;background:var(--accent-dim);border:1px solid rgba(232,180,76,0.35);
     border-radius:12px;padding:18px 20px;}
   .note .tag-label{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;letter-spacing:1px;color:var(--accent);
@@ -70,7 +73,7 @@
   .note.err{background:var(--neg-dim);border-color:rgba(255,107,95,0.4);}
   .note.err .tag-label{color:var(--neg);}
   .err-detail{font-family:ui-monospace,monospace;font-size:11px;color:var(--text-soft);margin-top:8px;word-break:break-all;}
-
+ 
   table.entries{width:100%;border-collapse:collapse;margin-top:6px;font-family:ui-monospace,monospace;font-size:12.5px;}
   table.entries th{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);color:var(--text-soft);
     font-weight:600;font-size:10.5px;text-transform:uppercase;letter-spacing:0.4px;}
@@ -81,23 +84,23 @@
   .tag.f{background:var(--blue-dim);color:var(--blue);}
   .tag.t{background:var(--pos-dim);color:var(--pos);}
   .tag.x{background:var(--neg-dim);color:var(--neg);}
-
+ 
   .empty{text-align:center;padding:44px 10px;color:var(--text-soft);font-size:13px;}
   .foot{margin-top:22px;font-size:11px;color:var(--text-soft);text-align:center;}
   .section-title{font-size:12.5px;color:var(--text-soft);font-weight:600;letter-spacing:0.2px;margin:0 0 8px;}
-
+ 
   @media (max-width:760px){ .kpis{grid-template-columns:repeat(2,1fr);} .charts{grid-template-columns:1fr;} .panel{padding:18px;} }
 </style>
-
+ 
 <script type="text/babel" data-presets="react">
 const {useState,useEffect,useRef,useCallback} = React;
-
+ 
 const SHEETS = {
   Fakturalar: ["Sana","Viloyat","Apteka","Mahsulot","Soni","Summa"],
   Tolovlar: ["Sana","Viloyat","Apteka","Tolov_summasi"],
   Xarajatlar: ["Sana","Viloyat","Kategoriya","Summa"],
 };
-
+ 
 function fmt(n){
   if (n===null||n===undefined||isNaN(n)) return "-";
   return Math.round(n).toLocaleString("ru-RU").replace(/,/g," ") + " so'm";
@@ -106,7 +109,7 @@ function fmtInt(n){
   if (n===null||n===undefined||isNaN(n)) return "-";
   return Math.round(n).toLocaleString("ru-RU").replace(/,/g," ");
 }
-
+ 
 function App(){
   const [data,setData] = useState({fakturalar:[], tolovlar:[], xarajatlar:[]});
   const [loaded,setLoaded] = useState(false);
@@ -117,12 +120,16 @@ function App(){
   const [aiErr,setAiErr] = useState(false);
   const [aiErrDetail,setAiErrDetail] = useState("");
   const [expenseMonth,setExpenseMonth] = useState("");
+  const [filterTur,setFilterTur] = useState("Barchasi");
+  const [filterViloyat,setFilterViloyat] = useState("Barchasi");
+  const [page,setPage] = useState(1);
+  const PAGE_SIZE = 50;
   const fileRef = useRef(null);
   const chartRefRevenue = useRef(null);
   const chartRefExpense = useRef(null);
   const chartObjRevenue = useRef(null);
   const chartObjExpense = useRef(null);
-
+ 
   useEffect(() => {
     (async () => {
       try {
@@ -132,7 +139,7 @@ function App(){
       setLoaded(true);
     })();
   }, []);
-
+ 
   const parseSheet = (wb, sheetName, cols) => {
     if (!wb.SheetNames.includes(sheetName)) return [];
     const json = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {defval:""});
@@ -160,7 +167,7 @@ function App(){
       return out;
     }).filter(r => r.Sana);
   };
-
+ 
   const parseFile = (file) => {
     const reader = new FileReader();
     reader.onload = async (e) => {
@@ -169,12 +176,12 @@ function App(){
         const fakturalar = parseSheet(wb, "Fakturalar", SHEETS.Fakturalar);
         const tolovlar = parseSheet(wb, "Tolovlar", SHEETS.Tolovlar);
         const xarajatlar = parseSheet(wb, "Xarajatlar", SHEETS.Xarajatlar);
-
+ 
         if (fakturalar.length===0 && tolovlar.length===0 && xarajatlar.length===0) {
           alert("Fayldan hech qanday mos ma'lumot topilmadi. Varaq nomlari aynan 'Fakturalar', 'Tolovlar', 'Xarajatlar' ekanini tekshiring.");
           return;
         }
-
+ 
         const res = await fetch("/api/data", {
           method:"POST", headers:{"Content-Type":"application/json"},
           body: JSON.stringify({fakturalar, tolovlar, xarajatlar})
@@ -190,19 +197,19 @@ function App(){
     };
     reader.readAsArrayBuffer(file);
   };
-
+ 
   const onFileInput = (e) => { if(e.target.files[0]) parseFile(e.target.files[0]); e.target.value=""; };
   const onDrop = (e) => { e.preventDefault(); setDragging(false); if(e.dataTransfer.files[0]) parseFile(e.dataTransfer.files[0]); };
-
+ 
   const clearAll = async () => {
     if(!confirm("Barcha saqlangan ma'lumotlarni o'chirmoqchimisiz? Bu ortga qaytarilmaydi.")) return;
     try { await fetch("/api/data", {method:"DELETE"}); } catch(e){}
     setData({fakturalar:[], tolovlar:[], xarajatlar:[]}); setAiText(""); setLastAdded(null);
   };
-
+ 
   const {fakturalar, tolovlar, xarajatlar} = data;
   const hasData = fakturalar.length>0 || tolovlar.length>0 || xarajatlar.length>0;
-
+ 
   const umumiySavdo = fakturalar.reduce((s,r)=>s+r.Summa,0);
   const umumiyMahsulotSoni = fakturalar.reduce((s,r)=>s+r.Soni,0);
   const umumiyTushum = tolovlar.reduce((s,r)=>s+r.Tolov_summasi,0);
@@ -210,29 +217,29 @@ function App(){
   const umumiyOylik = xarajatlar.filter(r=>r.Kategoriya==="Oylik").reduce((s,r)=>s+r.Summa,0);
   const fakturaAptekalar = new Set(fakturalar.map(r=>r.Apteka)).size;
   const tolovAptekalar = new Set(tolovlar.map(r=>r.Apteka)).size;
-
+ 
   const tushumByViloyat = {};
   tolovlar.forEach(r=>{ tushumByViloyat[r.Viloyat] = (tushumByViloyat[r.Viloyat]||0) + r.Tolov_summasi; });
   const tushumEntries = Object.entries(tushumByViloyat).sort((a,b)=>b[1]-a[1]);
-
+ 
   const xarajatMonths = [...new Set(xarajatlar.map(r=>r.Sana.slice(0,7)))].sort();
   useEffect(()=>{
     if (xarajatMonths.length>0 && !xarajatMonths.includes(expenseMonth)) {
       setExpenseMonth(xarajatMonths[xarajatMonths.length-1]);
     }
   }, [xarajatMonths.join(",")]);
-
+ 
   const xarajatByViloyatForMonth = {};
   xarajatlar.filter(r=>r.Sana.slice(0,7)===expenseMonth).forEach(r=>{
     xarajatByViloyatForMonth[r.Viloyat] = (xarajatByViloyatForMonth[r.Viloyat]||0) + r.Summa;
   });
   const xarajatEntries = Object.entries(xarajatByViloyatForMonth).sort((a,b)=>b[1]-a[1]);
-
+ 
   useEffect(()=>{
     if(!loaded) return;
     if(chartObjRevenue.current) chartObjRevenue.current.destroy();
     if(chartObjExpense.current) chartObjExpense.current.destroy();
-
+ 
     if(tushumEntries.length>0){
       chartObjRevenue.current = new Chart(chartRefRevenue.current, {
         type:"bar",
@@ -254,11 +261,11 @@ function App(){
       });
     }
   }, [loaded, tushumEntries.map(e=>e[0]+e[1]).join(","), xarajatEntries.map(e=>e[0]+e[1]).join(",")]);
-
+ 
   const askAI = async () => {
     if(!hasData) return;
     setAiLoading(true); setAiErr(false); setAiErrDetail(""); setAiText("");
-
+ 
     const context = `
 Umumiy savdo (faktura bo'yicha): ${fmt(umumiySavdo)}
 Umumiy mahsulot soni: ${fmtInt(umumiyMahsulotSoni)} dona
@@ -270,7 +277,7 @@ Pul to'lagan aptekalar soni: ${tolovAptekalar}
 Viloyatlar bo'yicha tushum: ${tushumEntries.map(([k,v])=>`${k}: ${fmt(v)}`).join(", ")}
 ${expenseMonth} oyida viloyatlar bo'yicha xarajat: ${xarajatEntries.map(([k,v])=>`${k}: ${fmt(v)}`).join(", ")}
 `.trim();
-
+ 
     try {
       const resp = await fetch("/api/xulosa", {
         method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({context})
@@ -288,15 +295,25 @@ ${expenseMonth} oyida viloyatlar bo'yicha xarajat: ${xarajatEntries.map(([k,v])=
     }
     setAiLoading(false);
   };
-
+ 
   const todayStr = new Date().toISOString().slice(0,10);
-
-  const recent = [
-    ...fakturalar.slice(-6).map(r=>({...r, _tur:"f", _label:"Faktura", _summa:r.Summa})),
-    ...tolovlar.slice(-6).map(r=>({...r, _tur:"t", _label:"To'lov", _summa:r.Tolov_summasi})),
-    ...xarajatlar.slice(-6).map(r=>({...r, _tur:"x", _label:"Xarajat", _summa:r.Summa})),
-  ].sort((a,b)=>b.Sana.localeCompare(a.Sana)).slice(0,12);
-
+ 
+  const allActivity = [
+    ...fakturalar.map(r=>({...r, _tur:"f", _label:"Faktura", _summa:r.Summa, _tafsilot:r.Apteka})),
+    ...tolovlar.map(r=>({...r, _tur:"t", _label:"To'lov", _summa:r.Tolov_summasi, _tafsilot:r.Apteka})),
+    ...xarajatlar.map(r=>({...r, _tur:"x", _label:"Xarajat", _summa:r.Summa, _tafsilot:r.Kategoriya})),
+  ].sort((a,b)=>b.Sana.localeCompare(a.Sana));
+ 
+  const allViloyatlar = [...new Set(allActivity.map(r=>r.Viloyat))].sort();
+ 
+  const filtered = allActivity.filter(r =>
+    (filterTur==="Barchasi" || r._label===filterTur) &&
+    (filterViloyat==="Barchasi" || r.Viloyat===filterViloyat)
+  );
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageSafe = Math.min(page, totalPages);
+  const pageRows = filtered.slice((pageSafe-1)*PAGE_SIZE, pageSafe*PAGE_SIZE);
+ 
   return (
     <div className="wrap">
       <div className="masthead">
@@ -304,7 +321,7 @@ ${expenseMonth} oyida viloyatlar bo'yicha xarajat: ${xarajatEntries.map(([k,v])=
         <span className="date">{todayStr}</span>
       </div>
       <p className="subtitle">Fakturalar, to'lovlar va xarajatlarni yuklang — umumiy ko'rsatkichlar va AI xulosa avtomatik chiqadi</p>
-
+ 
       <div className="panel">
         <div
           className={"drop" + (dragging ? " drag" : "")}
@@ -318,7 +335,7 @@ ${expenseMonth} oyida viloyatlar bo'yicha xarajat: ${xarajatEntries.map(([k,v])=
           <div className="main">Excel faylni shu yerga tashlang yoki bosib tanlang</div>
           <div className="sub">Fakturalar · Tolovlar · Xarajatlar varaqlari bilan</div>
         </div>
-
+ 
         {hasData && (
         <>
           <div className="row-top">
@@ -331,7 +348,7 @@ ${expenseMonth} oyida viloyatlar bo'yicha xarajat: ${xarajatEntries.map(([k,v])=
               <button className="btn ghost" onClick={clearAll}>Tozalash</button>
             </div>
           </div>
-
+ 
           <div className="kpis">
             <div className="kpi blue"><div className="label">Umumiy savdo</div><div className="val">{fmt(umumiySavdo)}</div></div>
             <div className="kpi accent"><div className="label">Mahsulot soni</div><div className="val">{fmtInt(umumiyMahsulotSoni)}</div></div>
@@ -341,7 +358,7 @@ ${expenseMonth} oyida viloyatlar bo'yicha xarajat: ${xarajatEntries.map(([k,v])=
             <div className="kpi blue"><div className="label">Faktura chiqarilgan apteka</div><div className="val">{fakturaAptekalar}</div></div>
             <div className="kpi pos"><div className="label">To'lov qilgan apteka</div><div className="val">{tolovAptekalar}</div></div>
           </div>
-
+ 
           <div className="charts">
             <div className="chart-box">
               <div className="chead"><h3>Viloyatlar bo'yicha tushum</h3></div>
@@ -363,7 +380,7 @@ ${expenseMonth} oyida viloyatlar bo'yicha xarajat: ${xarajatEntries.map(([k,v])=
               </div>
             </div>
           </div>
-
+ 
           {(aiText || aiLoading) && (
             <div className={"note" + (aiLoading?" loading":"") + (aiErr?" err":"")}>
               <div className="tag-label">{aiErr ? "Xatolik" : "AI Xulosa"}</div>
@@ -371,32 +388,61 @@ ${expenseMonth} oyida viloyatlar bo'yicha xarajat: ${xarajatEntries.map(([k,v])=
               {aiErr && aiErrDetail && <div className="err-detail">Texnik tafsilot: {aiErrDetail}</div>}
             </div>
           )}
-
-          <p className="section-title">So'nggi faoliyat</p>
-          <table className="entries">
-            <thead><tr><th>Sana</th><th>Turi</th><th>Viloyat</th><th>Tafsilot</th><th style={{textAlign:"right"}}>Summa</th></tr></thead>
-            <tbody>
-              {recent.map((r,i)=>(
-                <tr key={i}>
-                  <td>{r.Sana}</td>
-                  <td><span className={"tag "+r._tur}>{r._label}</span></td>
-                  <td>{r.Viloyat}</td>
-                  <td>{r.Apteka || r.Kategoriya || r.Mahsulot || "-"}</td>
-                  <td style={{textAlign:"right"}}>{fmt(r._summa)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+ 
+          <div className="row-top" style={{marginTop:8}}>
+            <p className="section-title" style={{margin:0}}>Barcha faoliyat ({filtered.length} ta yozuv)</p>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              <select value={filterTur} onChange={e=>{setFilterTur(e.target.value);setPage(1);}}
+                style={{background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text)",fontSize:"11.5px",borderRadius:7,padding:"5px 8px",fontFamily:"inherit"}}>
+                {["Barchasi","Faktura","To'lov","Xarajat"].map(t=><option key={t} value={t}>{t}</option>)}
+              </select>
+              <select value={filterViloyat} onChange={e=>{setFilterViloyat(e.target.value);setPage(1);}}
+                style={{background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text)",fontSize:"11.5px",borderRadius:7,padding:"5px 8px",fontFamily:"inherit"}}>
+                <option value="Barchasi">Barcha viloyatlar</option>
+                {allViloyatlar.map(v=><option key={v} value={v}>{v}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={{maxHeight:480,overflowY:"auto",border:"1px solid var(--border)",borderRadius:10}}>
+            <table className="entries">
+              <thead style={{position:"sticky",top:0,background:"var(--surface2)",zIndex:1}}>
+                <tr><th>Sana</th><th>Turi</th><th>Viloyat</th><th>Tafsilot</th><th style={{textAlign:"right"}}>Summa</th></tr>
+              </thead>
+              <tbody>
+                {pageRows.map((r,i)=>(
+                  <tr key={i}>
+                    <td>{r.Sana}</td>
+                    <td><span className={"tag "+r._tur}>{r._label}</span></td>
+                    <td>{r.Viloyat}</td>
+                    <td>{r._tafsilot || "-"}</td>
+                    <td style={{textAlign:"right"}}>{fmt(r._summa)}</td>
+                  </tr>
+                ))}
+                {pageRows.length===0 && (
+                  <tr><td colSpan="5" style={{textAlign:"center",color:"var(--text-soft)",padding:20}}>Bu filtrga mos yozuv topilmadi</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          {totalPages>1 && (
+            <div style={{display:"flex",justifyContent:"center",alignItems:"center",gap:10,marginTop:12}}>
+              <button className="btn ghost" disabled={pageSafe<=1} onClick={()=>setPage(p=>p-1)}>← Oldingi</button>
+              <span className="count">{pageSafe} / {totalPages}</span>
+              <button className="btn ghost" disabled={pageSafe>=totalPages} onClick={()=>setPage(p=>p+1)}>Keyingi →</button>
+            </div>
+          )}
         </>
         )}
-
+ 
         {!hasData && loaded && <div className="empty">Hali ma'lumot yuklanmagan. Yuqoridagi joyga Excel faylni tashlang.</div>}
       </div>
-
+ 
       <div className="foot">Ma'lumotlar serverda saqlanadi — barcha rahbarlar bir xil ma'lumotni ko'radi.</div>
     </div>
   );
 }
-
+ 
 ReactDOM.createRoot(document.getElementById("app")).render(<App/>);
 </script>
+ 
+
