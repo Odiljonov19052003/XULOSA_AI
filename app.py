@@ -11,9 +11,10 @@ Bu server:
 import os
 import json
 import threading
+import secrets
 from pathlib import Path
 
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory, session, redirect
 from dotenv import load_dotenv
 import anthropic
 
@@ -25,9 +26,63 @@ STATIC_DIR = APP_DIR / "static"
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 AI_MODEL = os.getenv("AI_MODEL", "claude-sonnet-5")
+SITE_PASSWORD = os.getenv("SITE_PASSWORD", "")  # bo'sh bo'lsa - parol so'ralmaydi
 
 app = Flask(__name__, static_folder=None)
+app.secret_key = os.getenv("SECRET_KEY", secrets.token_hex(32))
 _lock = threading.Lock()  # bir vaqtda ikkita yozuv to'qnashmasligi uchun
+
+LOGIN_HTML = """<!doctype html>
+<html><head><meta charset="utf-8"><title>Kirish</title>
+<style>
+  body{background:#0E1013;color:#EDEFF3;font-family:-apple-system,sans-serif;
+       display:flex;align-items:center;justify-content:center;height:100vh;margin:0;}
+  .box{background:#171A20;border:1px solid #2A2F3A;border-radius:16px;padding:32px;width:280px;}
+  h1{font-size:18px;margin:0 0 18px;}
+  input{width:100%;padding:10px;border-radius:8px;border:1px solid #2A2F3A;
+        background:#1E222A;color:#EDEFF3;margin-bottom:12px;box-sizing:border-box;font-size:14px;}
+  button{width:100%;padding:10px;border-radius:8px;border:none;font-weight:600;
+         background:linear-gradient(135deg,#5B8DEF,#3FD6A8);color:#0E1013;cursor:pointer;font-size:14px;}
+  .err{color:#FF6B5F;font-size:13px;margin:-6px 0 12px;}
+</style></head>
+<body>
+  <form class="box" method="POST" action="/login">
+    <h1>Faoliyat Paneli</h1>
+    {error_html}
+    <input type="password" name="password" placeholder="Parol" autofocus>
+    <button type="submit">Kirish</button>
+  </form>
+</body></html>"""
+
+
+@app.before_request
+def require_login():
+    if not SITE_PASSWORD:
+        return  # parol sozlanmagan - himoyasiz ishlaydi
+    if request.path == "/login":
+        return
+    if not session.get("auth"):
+        if request.path.startswith("/api/"):
+            return jsonify({"error": "Avtorizatsiya talab qilinadi"}), 401
+        return redirect("/login")
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    error_html = ""
+    if request.method == "POST":
+        if request.form.get("password") == SITE_PASSWORD:
+            session["auth"] = True
+            session.permanent = True
+            return redirect("/")
+        error_html = '<p class="err">Parol noto\'g\'ri</p>'
+    return LOGIN_HTML.replace("{error_html}", error_html)
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect("/login")
 
 
 def _load_data():
