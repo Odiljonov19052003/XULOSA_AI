@@ -30,23 +30,49 @@ app = Flask(__name__, static_folder=None)
 _lock = threading.Lock()  # bir vaqtda ikkita yozuv to'qnashmasligi uchun
 
 
-def _load_entries():
+def _load_data():
     if not DATA_FILE.exists():
-        return []
+        return {"fakturalar": [], "tolovlar": [], "xarajatlar": []}
     try:
         with open(DATA_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+            d = json.load(f)
+            return {
+                "fakturalar": d.get("fakturalar", []),
+                "tolovlar": d.get("tolovlar", []),
+                "xarajatlar": d.get("xarajatlar", []),
+            }
     except (json.JSONDecodeError, OSError):
-        return []
+        return {"fakturalar": [], "tolovlar": [], "xarajatlar": []}
 
 
-def _save_entries(entries):
+def _save_data(data):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(entries, f, ensure_ascii=False, indent=2)
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-def _row_key(r):
-    return (r.get("Sana"), r.get("Turi"), r.get("Kategoriya"), r.get("Bolim"), r.get("Summa"))
+def _faktura_key(r):
+    return (r.get("Sana"), r.get("Viloyat"), r.get("Apteka"), r.get("Mahsulot"), r.get("Soni"), r.get("Summa"))
+
+
+def _tolov_key(r):
+    return (r.get("Sana"), r.get("Viloyat"), r.get("Apteka"), r.get("Tolov_summasi"))
+
+
+def _xarajat_key(r):
+    return (r.get("Sana"), r.get("Viloyat"), r.get("Kategoriya"), r.get("Summa"))
+
+
+def _merge(existing_list, new_list, key_fn):
+    seen = {key_fn(r) for r in existing_list}
+    added = 0
+    for r in new_list:
+        k = key_fn(r)
+        if k not in seen:
+            existing_list.append(r)
+            seen.add(k)
+            added += 1
+    existing_list.sort(key=lambda r: r.get("Sana", ""))
+    return added
 
 
 # ---------- Sayt fayllarini ko'rsatish ----------
@@ -58,38 +84,34 @@ def index():
 
 # ---------- Ma'lumotlar API'si ----------
 
-@app.route("/api/entries", methods=["GET"])
-def get_entries():
-    return jsonify({"entries": _load_entries()})
+@app.route("/api/data", methods=["GET"])
+def get_data():
+    return jsonify(_load_data())
 
 
-@app.route("/api/entries", methods=["POST"])
-def add_entries():
+@app.route("/api/data", methods=["POST"])
+def add_data():
     payload = request.get_json(force=True, silent=True) or {}
-    new_rows = payload.get("entries", [])
-    if not isinstance(new_rows, list):
-        return jsonify({"error": "entries ro'yxat (list) bo'lishi kerak"}), 400
+    new_fakturalar = payload.get("fakturalar", [])
+    new_tolovlar = payload.get("tolovlar", [])
+    new_xarajatlar = payload.get("xarajatlar", [])
 
     with _lock:
-        existing = _load_entries()
-        seen = {_row_key(r) for r in existing}
-        added = 0
-        for r in new_rows:
-            key = _row_key(r)
-            if key not in seen:
-                existing.append(r)
-                seen.add(key)
-                added += 1
-        existing.sort(key=lambda r: r.get("Sana", ""))
-        _save_entries(existing)
+        data = _load_data()
+        added = {
+            "fakturalar": _merge(data["fakturalar"], new_fakturalar, _faktura_key),
+            "tolovlar": _merge(data["tolovlar"], new_tolovlar, _tolov_key),
+            "xarajatlar": _merge(data["xarajatlar"], new_xarajatlar, _xarajat_key),
+        }
+        _save_data(data)
 
-    return jsonify({"entries": existing, "added": added})
+    return jsonify({**data, "added": added})
 
 
-@app.route("/api/entries", methods=["DELETE"])
-def clear_entries():
+@app.route("/api/data", methods=["DELETE"])
+def clear_data():
     with _lock:
-        _save_entries([])
+        _save_data({"fakturalar": [], "tolovlar": [], "xarajatlar": []})
     return jsonify({"ok": True})
 
 
