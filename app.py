@@ -1,15 +1,25 @@
 """
-Moliya Daftari — backend server.
+Xulosa AI — backend server.
 
 Bu server:
 1. Saytning o'zini (static/index.html) ko'rsatadi
-2. Yuklangan moliyaviy yozuvlarni serverda (data.json faylida) saqlaydi,
-   shunda barcha rahbarlar bir xil ma'lumotni ko'radi
+2. Yuklangan HAR QANDAY Excel fayldan olingan (frontendda parse qilingan)
+   umumiy (generic) jadval ma'lumotlarini serverda (data.json faylida)
+   saqlaydi - "hisobot" sifatida, shunda hamma bir xil ma'lumotni ko'radi
 3. AI xulosa so'rovini Anthropic API'ga API kalitni YASHIRIN holda yuboradi
    (kalit hech qachon brauzerga, foydalanuvchiga ko'rinmaydi)
+
+Eski versiyada faqat qat'iy belgilangan 3 ta varaq (Fakturalar/Tolovlar/
+Xarajatlar, aniq ustun nomlari bilan) qabul qilinardi. Endi fayl qanday
+tuzilgan bo'lishidan qat'iy nazar (istalgan varaq nomlari, istalgan ustun
+nomlari) ishlaydi - varaq/ustun turlarini frontend (static/index.html)
+o'zi aniqlab, umumiy {nomi, ustunlar, qatorlar} ko'rinishida shu serverga
+yuboradi.
 """
 import os
 import json
+import time
+import uuid
 import threading
 import secrets
 from pathlib import Path
@@ -28,8 +38,14 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 AI_MODEL = os.getenv("AI_MODEL", "claude-sonnet-5")
 SITE_PASSWORD = os.getenv("SITE_PASSWORD", "")  # bo'sh bo'lsa - parol so'ralmaydi
 
+# Diskda / xotirada cheksiz o'sib ketmasligi uchun cheklovlar. Eski
+# hisobotlar shu limitdan oshganda avtomatik (eng eskisidan) o'chiriladi.
+MAX_HISOBOTLAR = 30
+MAX_QATORLAR_PER_VARAQ = 20000
+
 app = Flask(__name__, static_folder=None)
 app.secret_key = os.getenv("SECRET_KEY", secrets.token_hex(32))
+app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024  # 25 MB - juda katta so'rovlardan himoya
 _lock = threading.Lock()  # bir vaqtda ikkita yozuv to'qnashmasligi uchun
 
 LOGIN_HTML = """<!doctype html>
@@ -47,7 +63,7 @@ LOGIN_HTML = """<!doctype html>
 </style></head>
 <body>
   <form class="box" method="POST" action="/login">
-    <h1>Faoliyat Paneli</h1>
+    <h1>Xulosa AI</h1>
     {error_html}
     <input type="password" name="password" placeholder="Parol" autofocus>
     <button type="submit">Kirish</button>
@@ -85,19 +101,17 @@ def logout():
     return redirect("/login")
 
 
+# ---------- Ma'lumotlarni saqlash ----------
+
 def _load_data():
     if not DATA_FILE.exists():
-        return {"fakturalar": [], "tolovlar": [], "xarajatlar": []}
+        return {"hisobotlar": []}
     try:
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             d = json.load(f)
-            return {
-                "fakturalar": d.get("fakturalar", []),
-                "tolovlar": d.get("tolovlar", []),
-                "xarajatlar": d.get("xarajatlar", []),
-            }
+            return {"hisobotlar": d.get("hisobotlar", [])}
     except (json.JSONDecodeError, OSError):
-        return {"fakturalar": [], "tolovlar": [], "xarajatlar": []}
+        return {"hisobotlar": []}
 
 
 def _save_data(data):
@@ -105,29 +119,21 @@ def _save_data(data):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-def _faktura_key(r):
-    return (r.get("Sana"), r.get("Viloyat"), r.get("Apteka"), r.get("Mahsulot"), r.get("Soni"), r.get("Summa"))
-
-
-def _tolov_key(r):
-    return (r.get("Sana"), r.get("Viloyat"), r.get("Apteka"), r.get("Tolov_summasi"))
-
-
-def _xarajat_key(r):
-    return (r.get("Sana"), r.get("Viloyat"), r.get("Kategoriya"), r.get("Summa"))
-
-
-def _merge(existing_list, new_list, key_fn):
-    seen = {key_fn(r) for r in existing_list}
-    added = 0
-    for r in new_list:
-        k = key_fn(r)
-        if k not in seen:
-            existing_list.append(r)
-            seen.add(k)
-            added += 1
-    existing_list.sort(key=lambda r: r.get("Sana", ""))
-    return added
+def _hisobot_summary(h):
+    """To'liq qator ma'lumotisiz, faqat ro'yxat uchun yengil ko'rinish."""
+    return {
+        "id": h["id"],
+        "fayl_nomi": h["fayl_nomi"],
+        "yuklangan_vaqt": h["yuklangan_vaqt"],
+        "varaqlar": [
+            {
+                "nomi": v["nomi"],
+                "ustunlar": v["ustunlar"],
+                "qatorlar_soni": len(v.get("qatorlar", [])),
+            }
+            for v in h.get("varaqlar", [])
+        ],
+    }
 
 
 # ---------- Sayt fayllarini ko'rsatish ----------
@@ -137,36 +143,76 @@ def index():
     return send_from_directory(STATIC_DIR, "index.html")
 
 
-# ---------- Ma'lumotlar API'si ----------
+# ---------- Hisobotlar (har qanday Excel'dan olingan umumiy jadval) API'si ----------
 
-@app.route("/api/data", methods=["GET"])
-def get_data():
-    return jsonify(_load_data())
+@app.route("/api/hisobotlar", methods=["GET"])
+def list_hisobotlar():
+    """Faqat ro'yxat (yengil) - qatorlarsiz. Bittasini to'liq (qatorlari
+    bilan) ko'rish uchun GET /api/hisobotlar/<id> ishlatiladi."""
+    data = _load_data()
+    return jsonify({"hisobotlar": [_hisobot_summary(h) for h in data["hisobotlar"]]})
 
 
-@app.route("/api/data", methods=["POST"])
-def add_data():
+@app.route("/api/hisobotlar/<hid>", methods=["GET"])
+def get_hisobot(hid):
+    data = _load_data()
+    for h in data["hisobotlar"]:
+        if h["id"] == hid:
+            return jsonify(h)
+    return jsonify({"error": "Hisobot topilmadi"}), 404
+
+
+@app.route("/api/hisobotlar", methods=["POST"])
+def add_hisobot():
     payload = request.get_json(force=True, silent=True) or {}
-    new_fakturalar = payload.get("fakturalar", [])
-    new_tolovlar = payload.get("tolovlar", [])
-    new_xarajatlar = payload.get("xarajatlar", [])
+    fayl_nomi = str(payload.get("fayl_nomi", "") or "nomsiz_fayl.xlsx").strip()[:200]
+    varaqlar_in = payload.get("varaqlar", [])
+    if not isinstance(varaqlar_in, list) or not varaqlar_in:
+        return jsonify({"error": "varaqlar bo'sh bo'lmasligi kerak"}), 400
+
+    varaqlar = []
+    for v in varaqlar_in:
+        nomi = str(v.get("nomi", "") or "Varaq")[:120]
+        ustunlar = v.get("ustunlar", [])
+        qatorlar = v.get("qatorlar", [])
+        if not isinstance(qatorlar, list):
+            qatorlar = []
+        if len(qatorlar) > MAX_QATORLAR_PER_VARAQ:
+            qatorlar = qatorlar[:MAX_QATORLAR_PER_VARAQ]
+        varaqlar.append({"nomi": nomi, "ustunlar": ustunlar, "qatorlar": qatorlar})
+
+    hisobot = {
+        "id": f"r_{int(time.time())}_{uuid.uuid4().hex[:6]}",
+        "fayl_nomi": fayl_nomi,
+        "yuklangan_vaqt": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "varaqlar": varaqlar,
+    }
 
     with _lock:
         data = _load_data()
-        added = {
-            "fakturalar": _merge(data["fakturalar"], new_fakturalar, _faktura_key),
-            "tolovlar": _merge(data["tolovlar"], new_tolovlar, _tolov_key),
-            "xarajatlar": _merge(data["xarajatlar"], new_xarajatlar, _xarajat_key),
-        }
+        data["hisobotlar"].insert(0, hisobot)  # eng yangisi birinchi
+        if len(data["hisobotlar"]) > MAX_HISOBOTLAR:
+            data["hisobotlar"] = data["hisobotlar"][:MAX_HISOBOTLAR]
         _save_data(data)
 
-    return jsonify({**data, "added": added})
+    return jsonify(hisobot)
 
 
-@app.route("/api/data", methods=["DELETE"])
-def clear_data():
+@app.route("/api/hisobotlar/<hid>", methods=["DELETE"])
+def delete_hisobot(hid):
     with _lock:
-        _save_data({"fakturalar": [], "tolovlar": [], "xarajatlar": []})
+        data = _load_data()
+        before = len(data["hisobotlar"])
+        data["hisobotlar"] = [h for h in data["hisobotlar"] if h["id"] != hid]
+        _save_data(data)
+        removed = before - len(data["hisobotlar"])
+    return jsonify({"ok": True, "removed": removed})
+
+
+@app.route("/api/hisobotlar", methods=["DELETE"])
+def clear_hisobotlar():
+    with _lock:
+        _save_data({"hisobotlar": []})
     return jsonify({"ok": True})
 
 
@@ -181,19 +227,24 @@ def xulosa():
     context = payload.get("context", "").strip()
     if not context:
         return jsonify({"error": "context bo'sh bo'lmasligi kerak"}), 400
+    context = context[:12000]  # AI so'roviga haddan tashqari uzun matn ketmasin
 
     try:
         client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
         message = client.messages.create(
             model=AI_MODEL,
-            max_tokens=600,
+            max_tokens=700,
             messages=[{
                 "role": "user",
                 "content": (
-                    "Sen kompaniya rahbari uchun moliyaviy tahlilchisan. Quyidagi ma'lumotlar "
-                    "asosida O'ZBEK TILIDA, qisqa (5-7 gap), aniq va amaliy xulosa yoz. Faqat "
-                    "berilgan raqamlardan foydalan, hech narsa o'ylab topma. Trend, xavotirli "
-                    f"joy va bitta amaliy tavsiya ber:\n\n{context}"
+                    "Sen tajribali ma'lumotlar tahlilchisan. Quyida bitta Excel jadvalining "
+                    "statistik xulosasi berilgan (jadval har xil mavzuda bo'lishi mumkin - "
+                    "sotuv, xarajat, xodimlar, ombor va h.k. - aynan qanday mavzu ekanini "
+                    "ustun nomlaridan o'zing tushunib ol). Shu statistika asosida O'ZBEK "
+                    "TILIDA, qisqa (5-8 gap), aniq va amaliy xulosa yoz: asosiy tendensiya, "
+                    "eng ko'zga tashlanadigan raqam(lar), xavotirli yoki g'ayrioddiy joy "
+                    "bo'lsa shu, va bitta amaliy tavsiya. Faqat berilgan raqamlardan "
+                    f"foydalan, hech narsa o'ylab topma:\n\n{context}"
                 ),
             }],
         )
