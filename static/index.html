@@ -149,7 +149,14 @@ function parseWorkbookToVaraqlar(arrayBuffer){
     const sheet = wb.Sheets[sheetName];
     const headerRows = XLSX.utils.sheet_to_json(sheet, {header:1, blankrows:false});
     if (!headerRows.length) continue;
-    const rawHeader = headerRows[0] || [];
+    // Array.from zichlaydi: XLSX ba'zan sarlavha qatorida "teshik" (hole)
+    // qoldiradi (masalan birlashtirilgan katak yoki butunlay bo'sh katak) -
+    // .map() teshiklarni o'tkazib yuboradi va keyinchalik JSON.stringify
+    // ularni asl "null" qiymatga aylantiradi, bu esa saqlangan hisobotni
+    // ochishda ilovani buzadi. Array.from bilan zichlab, har bir teshikni
+    // haqiqiy `undefined`ga aylantiramiz - shunda pastdagi fallback nom
+    // (`UstunN`) ishlaydi va hech qachon "null" ustun paydo bo'lmaydi.
+    const rawHeader = Array.from(headerRows[0] || []);
     const seen = {};
     const headers = rawHeader.map((h,i)=>{
       let name = (h===undefined||h===null||String(h).trim()==="") ? `Ustun${i+1}` : String(h).trim();
@@ -195,6 +202,21 @@ function parseWorkbookToVaraqlar(arrayBuffer){
 }
 
 // ---------- Statistika ----------
+
+// Serverda ilgari (eski xatolik tufayli) saqlangan hisobotlarda "ustunlar"
+// ichida haqiqiy `null` elementlar bo'lishi mumkin edi. Bu yordamchi shu
+// holatlarni ham xavfsiz qiladi - null'larni shunchaki e'tiborsiz qoldiradi,
+// ilova buzilmaydi.
+function sanitizeReport(report){
+  if (!report || !Array.isArray(report.varaqlar)) return report;
+  return {
+    ...report,
+    varaqlar: report.varaqlar.map(v => ({
+      ...v,
+      ustunlar: (v.ustunlar || []).filter(u => u && typeof u === "object"),
+    })),
+  };
+}
 
 function computeStats(ustunlar, qatorlar){
   const dateCols = ustunlar.filter(u=>u.turi==="sana").map(u=>u.nomi);
@@ -309,7 +331,7 @@ function App(){
 
   const loadFullReport = async (id) => {
     const res = await fetch(`/api/hisobotlar/${id}`);
-    if (res.ok) return await res.json();
+    if (res.ok) return sanitizeReport(await res.json());
     return null;
   };
 
@@ -363,7 +385,7 @@ function App(){
         setBusy(false);
         return;
       }
-      const created = await res.json();
+      const created = sanitizeReport(await res.json());
       const list = await loadReportsList();
       setReports(list);
       setCurrent(created);
