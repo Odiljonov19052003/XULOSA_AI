@@ -142,37 +142,105 @@ function detectColType(values){
   return "matn";
 }
 
+// Bitta qator "faqat matn" qatormi (kamida bitta to'ldirilgan katak bor,
+// lekin ichida son yoki sana yo'q) - sarlavha blokini aniqlashda ishlatiladi.
+function isTextOnlyRow(row){
+  let hasContent = false;
+  for (const v of row){
+    if (v===undefined || v===null || v==="") continue;
+    hasContent = true;
+    if (typeof v === "number" || v instanceof Date) return false;
+  }
+  return hasContent;
+}
+
 function parseWorkbookToVaraqlar(arrayBuffer){
   const wb = XLSX.read(arrayBuffer, {type:"array", cellDates:true});
   const varaqlar = [];
   for (const sheetName of wb.SheetNames){
     const sheet = wb.Sheets[sheetName];
-    const headerRows = XLSX.utils.sheet_to_json(sheet, {header:1, blankrows:false});
-    if (!headerRows.length) continue;
-    // Array.from zichlaydi: XLSX ba'zan sarlavha qatorida "teshik" (hole)
-    // qoldiradi (masalan birlashtirilgan katak yoki butunlay bo'sh katak) -
-    // .map() teshiklarni o'tkazib yuboradi va keyinchalik JSON.stringify
-    // ularni asl "null" qiymatga aylantiradi, bu esa saqlangan hisobotni
-    // ochishda ilovani buzadi. Array.from bilan zichlab, har bir teshikni
-    // haqiqiy `undefined`ga aylantiramiz - shunda pastdagi fallback nom
-    // (`UstunN`) ishlaydi va hech qachon "null" ustun paydo bo'lmaydi.
-    const rawHeader = Array.from(headerRows[0] || []);
+    // blankrows:false: bo'sh qatorlar (masalan sarlavha bilan jadval orasidagi
+    // ajratuvchi bo'sh qator) avtomatik olib tashlanadi.
+    const rows = XLSX.utils.sheet_to_json(sheet, {header:1, blankrows:false});
+    if (!rows.length) continue;
+
+    // ---- Sarlavha blokini aniqlash ----
+    // Ko'p haqiqiy hisobotlarda 1-qator jadval sarlavhasi emas, balki
+    // kompaniya nomi/hisobot nomi kabi "sarlavha" bo'ladi, va ustun nomlari
+    // (ba'zan 2 qatorga bo'lingan - masalan "Умумий қарз" ustidan
+    // "60 kungacha"/"60-90 kun"/"90 kundan ortiq" pastki sarlavhalar bilan)
+    // pastroqda joylashadi. Shuning uchun 1-qatorni "shartsiz" sarlavha deb
+    // olish ko'p ustunni butunlay yo'qotib qo'yardi (faqat 1-qatorda
+    // to'ldirilgan ustunlar saqlanardi, qolganlari tashlab yuborilardi).
+    //
+    // Endi: yuqoridan boshlab ketma-ket "faqat matn" qatorlarni (son/sana
+    // yo'q) sarlavha blokiga qo'shib boramiz - birinchi son yoki sana
+    // uchragan qatorgacha (bu haqiqiy ma'lumot boshlanishi). Agar bunday
+    // qator sarlavha blokidan keyin (masalan 6-7 qatorgacha) topilmasa,
+    // demak butun varaq faqat matndan iborat - bunday holda xavfsizlik
+    // uchun faqat 1-qatorni sarlavha deb olamiz (eski xatti-harakat).
+    const MAX_HEADER_BLOCK = 6;
+    let headerBlockLen = 0;
+    let foundDataBoundary = false; // true = son/sana qatoriga yetib to'xtadi (ishonchli chegara)
+    while (headerBlockLen < rows.length - 1 && headerBlockLen < MAX_HEADER_BLOCK){
+      if (!isTextOnlyRow(rows[headerBlockLen])) { foundDataBoundary = true; break; }
+      headerBlockLen++;
+    }
+    // Agar hech qachon son/sana qatoriga duch kelmasak (masalan butun varaq
+    // faqat matndan iborat - ustunlarning barchasi kategoriya/nom bo'lsa),
+    // "chegara"ni ishonchli deb bo'lmaydi - shunday holatda xavfsiz
+    // standart holatga (faqat 1-qator sarlavha) qaytamiz, aks holda haqiqiy
+    // ma'lumot qatorlarini ham "sarlavha" deb yutib yuborgan bo'lardik.
+    if (!foundDataBoundary) headerBlockLen = Math.min(headerBlockLen, 1);
+    if (headerBlockLen === 0) headerBlockLen = 1;
+
+    const headerBlock = rows.slice(0, headerBlockLen).map(r => Array.from(r || []));
+    const dataRows = rows.slice(headerBlockLen);
+    if (!dataRows.length) continue;
+
+    // Varaqning haqiqiy kenglagi (!ref oralig'idan) - shunda hech qanday
+    // ustun (sarlavha blokidagi qatorlarda bo'sh, lekin quyida ma'lumoti bor
+    // ustun ham) yo'qolib qolmaydi.
+    let refWidth = 0;
+    if (sheet["!ref"]) {
+      try {
+        const range = XLSX.utils.decode_range(sheet["!ref"]);
+        refWidth = range.e.c - range.s.c + 1;
+      } catch(e) { /* e'tiborsiz - quyidagi fallback ishlaydi */ }
+    }
+    const width = Math.min(
+      60, // g'oyat keng jadvallardan himoya
+      Math.max(refWidth, ...headerBlock.map(r=>r.length), 1)
+    );
+
+    // Har ustun uchun: sarlavha blokidagi qatorlarni yuqoridan pastga qarab
+    // ko'rib chiqamiz va OXIRGI bo'sh-bo'lmagan qiymatni olamiz - shunda
+    // ikki qatorli (asosiy+quyi) sarlavhalarda quyi (aniqroq) nom ustunga
+    // biriktiriladi, lekin faqat asosiy qatorda nomi bo'lgan ustunlar ham
+    // (quyi qatorda bo'sh bo'lsa) o'z nomini yo'qotmaydi.
+    const mergedHeaderVals = [];
+    for (let ci=0; ci<width; ci++){
+      let val;
+      for (const hr of headerBlock){
+        const v = hr[ci];
+        if (v!==undefined && v!==null && String(v).trim()!=="") val = v;
+      }
+      mergedHeaderVals.push(val);
+    }
+
     const seen = {};
-    const headers = rawHeader.map((h,i)=>{
+    const headers = mergedHeaderVals.map((h,i)=>{
       let name = (h===undefined||h===null||String(h).trim()==="") ? `Ustun${i+1}` : String(h).trim();
       if (seen[name]!==undefined){ seen[name]++; name = `${name}_${seen[name]}`; } else { seen[name]=0; }
       return name;
-    }).slice(0,60); // g'oyat keng jadvallardan himoya
-
-    const rowsRaw = XLSX.utils.sheet_to_json(sheet, {header:1, blankrows:false, range:1});
-    if (!rowsRaw.length) continue;
+    });
 
     // avval har ustun uchun tur aniqlash uchun xom qiymatlarni yig'amiz
     const colValues = headers.map(()=>[]);
-    rowsRaw.forEach(r=>{ headers.forEach((_,ci)=>colValues[ci].push(r[ci])); });
+    dataRows.forEach(r=>{ headers.forEach((_,ci)=>colValues[ci].push(r[ci])); });
     const colTypes = colValues.map(vals=>detectColType(vals));
 
-    const qatorlar = rowsRaw.slice(0, MAX_ROWS).map(r=>{
+    const qatorlar = dataRows.slice(0, MAX_ROWS).map(r=>{
       const out = {};
       headers.forEach((h,ci)=>{
         let v = r[ci];
